@@ -3,7 +3,7 @@
 * @Date:   2016-11-26T11:15:14+08:00
 * @Email:  uniquecolesmith@gmail.com
 * @Last modified by:   eason
-* @Last modified time: 2016-11-27T21:01:01+08:00
+* @Last modified time: 2016-11-27T21:44:27+08:00
 * @License: MIT
 * @Copyright: Eason(uniquecolesmith@gmail.com)
 */
@@ -11,7 +11,7 @@
 const Router = require('express').Router;
 
 module.exports = function createRoute(controller) {
-  router = Router();
+  const router = Router();
 
   router
     .route('/')
