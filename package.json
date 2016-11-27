@@ -1,0 +1,23 @@
+{
+  "name": "eva-server",
+  "version": "0.0.1",
+  "description": "Eva Rest Api Server",
+  "main": "index.js",
+  "author": "Eason(uniquecolesmith@gmail.com)",
+  "license": "MIT",
+  "scripts": {
+    "build": "npm run clean && babel . -d ./build/.tmp --ignore node_modules && npm run compress",
+    "self-publish": "npm run build && rm -rf ./build/.tmp && cp {package.json,LICENSE,yarn.lock} build && cd build && npm publish # @TODO",
+    "clean": "rm -rf ./build",
+    "compress": "for e in $(ls ./build/.tmp); do uglifyjs ./build/.tmp/$e --compress --mangle -o ./build/$e; done;"
+  },
+  "dependencies": {
+    "body-parser": "^1.15.2",
+    "connect-multiparty": "^2.0.0",
+    "cors": "^2.8.1",
+    "express": "^4.14.0",
+    "helmet": "^3.1.0",
+    "mongoose": "^4.7.0",
+    "morgan": "^1.7.0"
+  }
+}
