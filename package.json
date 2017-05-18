@@ -2,17 +2,17 @@
   "name": "eva-server",
   "version": "0.0.1",
   "description": "Eva Rest Api Server",
-  "main": "index.js",
+  "main": "lib/index.js",
   "author": "Eason(uniquecolesmith@gmail.com)",
   "license": "MIT",
   "scripts": {
-    "build": "yarn run clean && babel . -d ./build/.tmp --ignore node_modules && yarn run compress",
-    "self-publish": "yarn run build && rm -rf ./build/.tmp && cp {package.json,LICENSE,yarn.lock} build && cd build && yarn publish # @TODO",
-    "clean": "rm -rf ./build",
-    "compress": "for e in $(ls ./build/.tmp); do uglifyjs ./build/.tmp/$e --compress --mangle -o ./build/$e; done;"
+    "build": "npm run clean && babel src --ignore node_modules --out-dir lib",
+    "self-publish": "npm run clean && npm run build && npm publish",
+    "clean": "rm -rf lib"
   },
   "dependencies": {
     "body-parser": "^1.15.2",
+    "compression": "^1.6.2",
     "connect-multiparty": "^2.0.0",
     "cors": "^2.8.1",
     "express": "^4.14.0",
@@ -22,6 +22,10 @@
   },
   "devDependencies": {
     "babel-cli": "^6.18.0",
+    "babel-plugin-add-module-exports": "^0.2.1",
+    "babel-plugin-transform-object-rest-spread": "^6.23.0",
+    "babel-plugin-transform-runtime": "^6.23.0",
+    "babel-preset-env": "^1.4.0",
     "babel-preset-latest": "^6.16.0",
     "uglify-js": "^2.7.4"
   }
