@@ -3,7 +3,7 @@
 * @Date:   2016-11-27T18:23:42+08:00
 * @Email:  uniquecolesmith@gmail.com
 * @Last modified by:   eason
-* @Last modified time: 2017-05-19T15:29:01+08:00
+* @Last modified time: 2017-05-19T20:25:23+08:00
 * @License: MIT
 * @Copyright: Eason(uniquecolesmith@gmail.com)
 */
@@ -20,6 +20,26 @@ const app = Eva({
     ENGINE: 'mongodb',
     HOST: 'localhost',
     PORT: '27017',
+  },
+});
+
+app.handler('User', {
+  'test'({ Article }, { res, next }) {
+    const article = new Article({ title: 'xxx' });
+    console.log(article);
+    res.send({
+      message: 'fo!',
+      article: null,
+    });
+  },
+});
+
+app.model('Article', {
+  schema: {
+    title: String,
+  },
+  options: {
+    toJSON: true,
   },
 });
 
@@ -62,7 +82,7 @@ app.register({
       // put: [],
     },
     '/test': {
-      get: ['log/time', 'test'],
+      get: ['log/time', 'User:test'],
     },
   },
   middlewares: {
@@ -97,5 +117,7 @@ app.register({
     },
   },
 });
+
+console.log(app);
 
 app.start();

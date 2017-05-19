@@ -2,7 +2,7 @@
  * @Author: eason
  * @Date:   2017-05-18T23:37:50+08:00
 * @Last modified by:   eason
-* @Last modified time: 2017-05-19T15:24:29+08:00
+* @Last modified time: 2017-05-19T18:01:37+08:00
  */
 import fs from 'fs';
 
@@ -38,28 +38,29 @@ export function createMethod(methodObject, namespace, name, extraMethodObject) {
   } else {
     // :getSome === global:getSome
     rNs = ns === '' ? 'global' : ns;
-    rHn = userUseColon.length ? `${rHn}:${userUseColon.join(':')}` : rHn;
+    rHn = userUseColon && userUseColon.length ? `${rHn}:${userUseColon.join(':')}` : rHn;
   }
 
   if (extraMethodObject) {
-    if (!methodObject[rNs][rHn]) {
+    if (!methodObject[rNs] || !methodObject[rNs][rHn]) {
       invariant(
         extraMethodObject[rNs][rHn],
         `Check whether handler ${rHn} has already register in ${rNs}`,
       );
 
       warning(
-        methodObject[rNs][rHn] || !extraMethodObject[rNs][rHn],
+        (methodObject[rNs] && methodObject[rNs][rHn]) || !extraMethodObject[rNs][rHn],
         `You had better create method ${rHn} as handler in ${rNs}`,
       );
+
+      return extraMethodObject[rNs][rHn];
     } else {
       warning(
         methodObject[rNs][rHn],
         `You had better create handler ${rHn} in ${rNs}`,
       );
+      return methodObject[rNs][rHn] || extraMethodObject[rNs][rHn];
     }
-
-    return methodObject[rNs][rHn] || extraMethodObject[rNs][rHn];
   }
 
   invariant(

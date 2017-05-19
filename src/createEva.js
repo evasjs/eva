@@ -3,7 +3,7 @@
 * @Date:   2017-05-18T15:37:15+08:00
 * @Email:  uniquecolesmith@gmail.com
 * @Last modified by:   eason
-* @Last modified time: 2017-05-19T15:33:34+08:00
+* @Last modified time: 2017-05-19T18:05:33+08:00
 * @License: MIT
 * @Copyright: Eason(uniquecolesmith@gmail.com)
 */
@@ -109,13 +109,20 @@ export default function createEva() {
       const vUtils = app._utils;
 
       const realSchema = new mongoose.Schema(schema, options);
-      realSchema.methods = mapObject(methods, (name, em) => function method(...args) {
-        em.apply(this, [vModels, vUtils, ...args]);
-      });
-      realSchema.statics = mapObject(statics, (name, em) => function method(...args) {
-        em.apply(this, [vModels, vUtils, ...args]);
-      });
-      mapObject(virtuals, (name, em) => realSchema.virtual(name).get(() => em(vUtils)));
+      if (methods) {
+        realSchema.methods = mapObject(methods, (name, em) => function method(...args) {
+          em.apply(this, [vModels, vUtils, ...args]);
+        });
+      }
+      if (statics) {
+        realSchema.statics = mapObject(statics, (name, em) => function method(...args) {
+          em.apply(this, [vModels, vUtils, ...args]);
+        });
+      }
+
+      if (virtuals) {
+        mapObject(virtuals, (name, em) => realSchema.virtual(name).get(() => em(vUtils)));
+      }
 
       vModels[namespace] = mongoose.model(namespace, realSchema);
 
