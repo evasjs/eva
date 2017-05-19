@@ -2,38 +2,46 @@
 * @Author: eason
 * @Date:   2017-05-18T15:37:15+08:00
 * @Email:  uniquecolesmith@gmail.com
- * @Last modified by:   eason
- * @Last modified time: 2017-05-19T01:36:51+08:00
+* @Last modified by:   eason
+* @Last modified time: 2017-05-19T15:33:34+08:00
 * @License: MIT
 * @Copyright: Eason(uniquecolesmith@gmail.com)
 */
-import fs from 'fs';
 import path from 'path';
 import invariant from 'invariant';
 
-import mongoose from 'mongoose';
+import { Router } from 'express';
 
-import express, { Router } from 'express';
+import { mapObject, createMethod, createDbConf, connectMongodb, createInstance } from './utils';
 
-import logger from 'morgan';
-import bodyParser from 'body-parser';
-import multipart from 'connect-multiparty';
-import cors from 'cors';
-import helmet from 'helmet';
-import compression from 'compression';
+const DEFAULT_SERVER = {
+  HOST: 'localhost',
+  PORT: process.env.PORT || 8000,
+};
 
-import { mapObject, mapFnObject, createMethod } from './utils';
-
-const DEFAULT_DB_URI = 'mongodb://localhost/eva_db';
-const DEFAULT_PORT = process.env.PORT || 8000;
+const DEFAULT_DB = {
+  DEFAULT: {
+    NAME: 'EVA_DEFAULT',
+    ENGINE: 'mongodb',
+    HOST: 'localhost',
+    PORT: '27017',
+  },
+  PRODUCT: {
+    NAME: 'EVA_PRODUCT',
+    ENGINE: 'mongodb',
+    USERNAME: 'mogo',
+    PASSWORD: 'mongo',
+    HOST: 'localhost',
+    PORT: '27017',
+  },
+};
 
 export default function createEva() {
-  const instance = express();
-
+  //
   return function eva({
     context = process.cwd(),
-    db = DEFAULT_DB_URI,
-    port = DEFAULT_PORT,
+    db = DEFAULT_DB,
+    server = DEFAULT_SERVER,
   } = {}) {
     const app = {
       // properties
@@ -44,6 +52,8 @@ export default function createEva() {
       },
       _handlers: {},
       _routes: {},
+      // utils
+      _utils: {},
 
       // methods
       registerNamespace,
@@ -53,13 +63,14 @@ export default function createEva() {
       route,
       register,
       plugin,
+      util,
       start,
 
       // express instance
       instance,
     };
 
-    init();
+    const { instance, mongoose } = init();
 
     return app;
 
@@ -67,95 +78,102 @@ export default function createEva() {
       const MODE = process.env.NODE_ENV || 'development';
       const LOGFILE = path.join(context, '.app.log');
 
-      // 1 LOG
-      if (MODE === 'development') {
-        instance.set('showStackErr', true);
-        instance.use(logger(':method :url :status :response-time[digits]'));
-        instance.locals.pretty = true;
-        mongoose.set('debug', true);
-      } else {
-        instance.use(logger('combined', {
-          stream: fs.createWriteStream(LOGFILE, { flags: 'a' }),
-        }));
-      }
+      const appInstance = createInstance(MODE, LOGFILE);
 
-      // 2 Database
-      mongoose.connect(db, (err) => {
-        /* eslint-disable */
-        if (err) {
-          console.log('\nError: MongoDB Connect Error. Maybe you donot start mongo server.');
-          console.log('\t%s\n', err);
-          process.exit();
-        } else {
-          console.log('Info: MongoDB Connect Successfully.');
-        }
-        /* eslint-enable */
-      });
+      const appMongoose = connectMongodb(
+        createDbConf(db[MODE] || db.DEFAULT || db),
+        MODE,
+      );
 
-      // 3 Common Middlewares
-      instance.use(helmet());
-      instance.use(cors());
-      instance.use(bodyParser.json());
-      instance.use(bodyParser.urlencoded({ extended: true }));
-      instance.use(multipart());
-      instance.use(compression());
+      return { instance: appInstance, mongoose: appMongoose };
     }
 
     function registerNamespace(ns) {
       invariant(ns, 'app.registerNamespace: namespace should be defined !');
 
       invariant(
-        !app._namespaces.includes(ns),
+        !app._namespaces.includes(ns) && ns !== 'global',
         `app.namespace: registerNamespace(${ns}) should be unique.`,
       );
 
       app._namespaces.push(ns);
+
+      return app;
     }
 
     function model(namespace, ms) {
+      invariant(ms, `app.model: models should be defined in ${namespace}`);
+
       const { schema, options, virtuals, methods, statics } = ms;
       const vModels = app._models;
+      const vUtils = app._utils;
 
       const realSchema = new mongoose.Schema(schema, options);
-      realSchema.methods = mapFnObject(methods, (name, em) => function method(...args) {
-        em.apply(this, [vModels, ...args]);
+      realSchema.methods = mapObject(methods, (name, em) => function method(...args) {
+        em.apply(this, [vModels, vUtils, ...args]);
       });
-      realSchema.statics = mapFnObject(statics, (name, em) => function method(...args) {
-        em.apply(this, [vModels, ...args]);
+      realSchema.statics = mapObject(statics, (name, em) => function method(...args) {
+        em.apply(this, [vModels, vUtils, ...args]);
       });
-      mapFnObject(virtuals, (name, em) => realSchema.virtual(name).get(em));
+      mapObject(virtuals, (name, em) => realSchema.virtual(name).get(() => em(vUtils)));
 
       vModels[namespace] = mongoose.model(namespace, realSchema);
 
       // link
-      return model;
+      return app;
     }
 
     function middleware(namespace, middlewares) {
+      invariant(middlewares, `app.middleware: middlewares should be defined in ${namespace}`);
+
       const vMiddlewares = app._middlewares;
       const vModels = app._models;
+      const vUtils = app._utils;
 
-      vMiddlewares[namespace] = mapFnObject(
+      vMiddlewares[namespace] = mapObject(
         middlewares,
-        (name, em) => (req, res, next) => em(vModels, { req, res, next }),
+        (name, em) => (req, res, next) => em(vModels, { req, res, next }, vUtils),
       );
 
-      return middleware;
+      return app;
     }
 
     function handler(namespace, handlers) {
+      invariant(handlers, `app.handler: handlers should be defined in ${namespace}`);
+
       const vHandlers = app._handlers;
       const vModels = app._models;
+      const vUtils = app._utils;
 
-      vHandlers[namespace] = mapFnObject(
+      vHandlers[namespace] = mapObject(
         handlers,
-        (name, em) => (req, res, next) => em(vModels, { req, res, next }),
+        (name, em) => (req, res, next) => em(vModels, { req, res, next }, vUtils),
       );
 
-      return middleware;
+      return app;
     }
 
     function route(namespace, routes) {
+      invariant(routes, `app.route: routes should be defined in ${namespace}`);
+
+      app._routes[namespace] = routes;
+
+      return app;
+    }
+
+    function register(oneApp) {
+      const { namespace, models, routes, middlewares, handlers } = oneApp;
+
+      registerNamespace(namespace);
+      if (middlewares) middleware(namespace, middlewares);
+      if (handlers) handler(namespace, handlers);
+      if (models) model(namespace, models);
+      if (routes) route(namespace, routes);
+
+      return app;
+    }
+
+    function renderRoutes(namespace, routes) {
       const vMiddlewares = app._middlewares;
       const vHandlers = app._handlers;
 
@@ -170,7 +188,7 @@ export default function createEva() {
               const [middlewares, endHandler] = [methodMHs.slice(0, -1), ...methodMHs.slice(-1)];
               return [
                 ...middlewares.map(m => createMethod(vMiddlewares, namespace, m)),
-                createMethod(vHandlers, namespace, endHandler),
+                createMethod(vHandlers, namespace, endHandler, vMiddlewares),
               ];
             },
           );
@@ -180,33 +198,18 @@ export default function createEva() {
       const router = new Router();
       Object.keys(t).forEach((rpath) => {
         const methods = t[rpath];
-        // const oneRouter = router.route(rpath);
-
-        // console.log('X: ', app._handlers.Article['hello/world'].toString());
 
         Object.keys(methods)
           .forEach(name => router[name](rpath, ...methods[name]));
       });
 
-      app._routes[namespace] = router;
-
-      return route;
-    }
-
-    function register(oneApp) {
-      const { namespace, models, routes, middlewares, handlers } = oneApp;
-
-      registerNamespace(namespace);
-      middleware(namespace, middlewares);
-      handler(namespace, handlers);
-      model(namespace, models);
-      route(namespace, routes);
+      return router;
     }
 
     function start() {
       for (const namespace in app._routes) {
         if (Object.prototype.hasOwnProperty.call(app._routes, namespace)) {
-          const nsRoutes = app._routes[namespace];
+          const nsRoutes = renderRoutes(namespace, app._routes[namespace]);
 
           // for (const oneRoute of nsRoutes) {
           //   instance.use(oneRoute);
@@ -216,12 +219,12 @@ export default function createEva() {
         }
       }
 
-      instance.listen(port, '127.0.0.1', (err) => {
+      instance.listen(server.PORT, server.HOST || 'localhost', (err) => {
         /* eslint-disable */
         if (err) {
           console.log(err);
         } else {
-          console.log(`Server start at port: ${port}`);
+          console.log(`Server start at port: ${server.PORT}`);
         }
         /* eslint-enable */
       });
@@ -229,8 +232,17 @@ export default function createEva() {
       return instance;
     }
 
-    function plugin(hook) {
-      return hook(app);
+    function plugin(application) {
+      register(application);
+      return app;
+    }
+
+    function util(utils) {
+      const vUtils = app._utils;
+
+      app._utils = { ...vUtils, ...utils };
+
+      return app;
     }
   };
 }

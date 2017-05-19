@@ -2,21 +2,37 @@
 * @Author: eason
 * @Date:   2016-11-27T18:23:42+08:00
 * @Email:  uniquecolesmith@gmail.com
- * @Last modified by:   eason
- * @Last modified time: 2017-05-19T01:33:22+08:00
+* @Last modified by:   eason
+* @Last modified time: 2017-05-19T15:29:01+08:00
 * @License: MIT
 * @Copyright: Eason(uniquecolesmith@gmail.com)
 */
 
-const Eva = require('./src');
+const Eva = require('./lib');
 
-const app = Eva();
+const app = Eva({
+  server: {
+    HOST: '0.0.0.0',
+    PORT: 8888,
+  },
+  db: {
+    NAME: 'EVA_DEFAULT',
+    ENGINE: 'mongodb',
+    HOST: 'localhost',
+    PORT: '27017',
+  },
+});
 
 app.register({
   namespace: 'Test',
   models: {
     schema: {
       name: String,
+    },
+    options: {
+      timestamps: true,
+      virtuals: true,
+      strict: true,
     },
     virtuals: {
       'hi'() {
@@ -27,8 +43,8 @@ app.register({
       'say/hi'() {
         return 'hihibyebye!';
       },
-      'list/all'(models, cb, ...args) {
-        console.log('xxy: ', models, cb, args);
+      'list/all'(models, utils, cb) {
+        // console.log('xxy: ', models, cb, args);
         this
           .find({})
           .exec(cb);
@@ -39,7 +55,7 @@ app.register({
   },
   routes: {
     '/': {
-      // all: [],
+      all: ['console'],
       get: ['hello/world'],
       post: ['hello/world/post'],
       // post: [],
@@ -54,8 +70,16 @@ app.register({
       req.edate = new Date();
       next();
     },
+    // 'console'(models, { next }) {
+    //   // res.send('Ohh ..');
+    //   next();
+    // },
   },
   handlers: {
+    'console'(models, { next }) {
+      // res.send('Ohh ..');
+      next();
+    },
     'hello/world'({ Test }, { res }) {
       Test['list/all']((err, rs) => {
         res.json({
