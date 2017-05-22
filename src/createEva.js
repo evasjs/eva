@@ -3,7 +3,7 @@
 * @Date:   2017-05-18T15:37:15+08:00
 * @Email:  uniquecolesmith@gmail.com
 * @Last modified by:   eason
-* @Last modified time: 2017-05-19T18:05:33+08:00
+* @Last modified time: 2017-05-22T17:52:17+08:00
 * @License: MIT
 * @Copyright: Eason(uniquecolesmith@gmail.com)
 */
@@ -40,6 +40,7 @@ export default function createEva() {
   //
   return function eva({
     context = process.cwd(),
+    instance = null,
     db = DEFAULT_DB,
     server = DEFAULT_SERVER,
   } = {}) {
@@ -67,18 +68,18 @@ export default function createEva() {
       start,
 
       // express instance
-      instance,
+      _instance,
     };
 
-    const { instance, mongoose } = init();
+    const { instance: _instance, mongoose } = init(instance);
 
     return app;
 
-    function init() {
+    function init(_appInstance) {
       const MODE = process.env.NODE_ENV || 'development';
       const LOGFILE = path.join(context, '.app.log');
 
-      const appInstance = createInstance(MODE, LOGFILE);
+      const appInstance = _appInstance || createInstance(MODE, LOGFILE);
 
       const appMongoose = connectMongodb(
         createDbConf(db[MODE] || db.DEFAULT || db),
@@ -104,27 +105,44 @@ export default function createEva() {
     function model(namespace, ms) {
       invariant(ms, `app.model: models should be defined in ${namespace}`);
 
-      const { schema, options, virtuals, methods, statics } = ms;
+      const { schema, options, virtuals, methods, statics, pre, post } = ms;
       const vModels = app._models;
+
+      invariant(!vModels[namespace], `app.model: model ${namespace} should register only once.`);
+
       const vUtils = app._utils;
 
-      const realSchema = new mongoose.Schema(schema, options);
+      const mongooseSchema = new mongoose.Schema(schema, options);
       if (methods) {
-        realSchema.methods = mapObject(methods, (name, em) => function method(...args) {
+        mongooseSchema.methods = mapObject(methods, (name, em) => function method(...args) {
           em.apply(this, [vModels, vUtils, ...args]);
         });
       }
       if (statics) {
-        realSchema.statics = mapObject(statics, (name, em) => function method(...args) {
+        mongooseSchema.statics = mapObject(statics, (name, em) => function method(...args) {
           em.apply(this, [vModels, vUtils, ...args]);
         });
       }
 
       if (virtuals) {
-        mapObject(virtuals, (name, em) => realSchema.virtual(name).get(() => em(vUtils)));
+        mapObject(virtuals, (name, em) => mongooseSchema.virtual(name).get(() => em(vUtils)));
       }
 
-      vModels[namespace] = mongoose.model(namespace, realSchema);
+      if (pre) {
+        mapObject(
+          virtuals,
+          (name, em) => mongooseSchema.pre(name, next => em(vModels, vUtils, next)),
+        );
+      }
+
+      if (post) {
+        mapObject(
+          virtuals,
+          (name, em) => mongooseSchema.post(name, next => em(vModels, vUtils, next)),
+        );
+      }
+
+      vModels[namespace] = mongoose.model(namespace, mongooseSchema);
 
       // link
       return app;
@@ -222,11 +240,11 @@ export default function createEva() {
           //   instance.use(oneRoute);
           // }
 
-          instance.use(nsRoutes);
+          _instance.use(nsRoutes);
         }
       }
 
-      instance.listen(server.PORT, server.HOST || 'localhost', (err) => {
+      _instance.listen(server.PORT, server.HOST || 'localhost', (err) => {
         /* eslint-disable */
         if (err) {
           console.log(err);
@@ -236,7 +254,7 @@ export default function createEva() {
         /* eslint-enable */
       });
 
-      return instance;
+      return _instance;
     }
 
     function plugin(application) {
