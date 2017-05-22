@@ -3,7 +3,7 @@
 * @Date:   2017-05-18T15:37:15+08:00
 * @Email:  uniquecolesmith@gmail.com
 * @Last modified by:   eason
-* @Last modified time: 2017-05-22T17:52:17+08:00
+* @Last modified time: 2017-05-22T18:48:05+08:00
 * @License: MIT
 * @Copyright: Eason(uniquecolesmith@gmail.com)
 */
@@ -125,19 +125,22 @@ export default function createEva() {
       }
 
       if (virtuals) {
-        mapObject(virtuals, (name, em) => mongooseSchema.virtual(name).get(() => em(vUtils)));
+        mapObject(
+          virtuals,
+          (name, em) => mongooseSchema.virtual(name).get(() => em(vUtils)),
+        );
       }
 
       if (pre) {
         mapObject(
-          virtuals,
+          pre,
           (name, em) => mongooseSchema.pre(name, next => em(vModels, vUtils, next)),
         );
       }
 
       if (post) {
         mapObject(
-          virtuals,
+          post,
           (name, em) => mongooseSchema.post(name, next => em(vModels, vUtils, next)),
         );
       }
