@@ -3,7 +3,7 @@
 * @Date:   2017-05-18T15:37:15+08:00
 * @Email:  uniquecolesmith@gmail.com
 * @Last modified by:   eason
-* @Last modified time: 2017-05-22T18:48:05+08:00
+* @Last modified time: 2017-05-22T19:40:47+08:00
 * @License: MIT
 * @Copyright: Eason(uniquecolesmith@gmail.com)
 */
@@ -134,14 +134,24 @@ export default function createEva() {
       if (pre) {
         mapObject(
           pre,
-          (name, em) => mongooseSchema.pre(name, next => em(vModels, vUtils, next)),
+          (name, em) => mongooseSchema.pre(
+            name,
+            function preName(next) {
+              em.apply(this, [vModels, vUtils, next]);
+            },
+          ),
         );
       }
 
       if (post) {
         mapObject(
           post,
-          (name, em) => mongooseSchema.post(name, next => em(vModels, vUtils, next)),
+          (name, em) => mongooseSchema.post(
+            name,
+            function preName(next) {
+              em.apply(this, [vModels, vUtils, next]);
+            },
+          ),
         );
       }
 
