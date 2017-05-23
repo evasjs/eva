@@ -3,7 +3,7 @@
 * @Date:   2017-05-18T15:37:15+08:00
 * @Email:  uniquecolesmith@gmail.com
 * @Last modified by:   eason
-* @Last modified time: 2017-05-22T19:40:47+08:00
+* @Last modified time: 2017-05-23T11:15:08+08:00
 * @License: MIT
 * @Copyright: Eason(uniquecolesmith@gmail.com)
 */
@@ -44,6 +44,9 @@ export default function createEva() {
     db = DEFAULT_DB,
     server = DEFAULT_SERVER,
   } = {}) {
+    // Generate server instance and db instance
+    const { instance: _instance, mongoose } = init(instance);
+
     const app = {
       // properties
       _namespaces: [],
@@ -70,8 +73,6 @@ export default function createEva() {
       // express instance
       _instance,
     };
-
-    const { instance: _instance, mongoose } = init(instance);
 
     return app;
 
@@ -219,6 +220,17 @@ export default function createEva() {
         // { path: {} }
         routes,
         (_, methodObject) => {
+          // []
+          if (Array.isArray(methodObject)) {
+            const [
+              middlewares, endHandler,
+            ] = [methodObject.slice(0, -1), ...methodObject.slice(-1)];
+            return [
+              ...middlewares.map(m => createMethod(vMiddlewares, namespace, m)),
+              createMethod(vHandlers, namespace, endHandler, vMiddlewares),
+            ];
+          }
+
           // { get: [], post: [] }
           return mapObject(
             methodObject,
@@ -237,6 +249,12 @@ export default function createEva() {
       Object.keys(t).forEach((rpath) => {
         const methods = t[rpath];
 
+        // '/user': ['list_user'] // @Support get method
+        if (Array.isArray(t[rpath])) {
+          return router.get(rpath, ...t[rpath]);
+        }
+
+        // '/user': { get: [], post: [], ... },
         Object.keys(methods)
           .forEach(name => router[name](rpath, ...methods[name]));
       });
