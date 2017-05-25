@@ -3,7 +3,7 @@
 * @Date:   2017-05-18T15:37:15+08:00
 * @Email:  uniquecolesmith@gmail.com
 * @Last modified by:   eason
-* @Last modified time: 2017-05-25T19:48:54+08:00
+* @Last modified time: 2017-05-25T19:57:20+08:00
 * @License: MIT
 * @Copyright: Eason(uniquecolesmith@gmail.com)
 */
@@ -82,10 +82,12 @@ export default function createEva() {
 
       const appInstance = _appInstance || createInstance(MODE, LOGFILE);
 
-      const appMongoose = connectMongodb(
-        createDbConf(db[MODE] || db.DEFAULT || db),
-        MODE,
-      );
+      const appMongoose = db === null
+        ? null
+        : connectMongodb(
+          createDbConf(db[MODE] || db.DEFAULT || db),
+          MODE,
+        );
 
       return { instance: appInstance, mongoose: appMongoose };
     }
@@ -104,6 +106,11 @@ export default function createEva() {
     }
 
     function model(namespace, ms) {
+      // NO need db
+      if (db === null && mongoose === null) {
+        return app;
+      }
+
       invariant(ms, `app.model: models should be defined in ${namespace}`);
 
       const { schema, options, virtuals, methods, statics, pre, post } = ms;
