@@ -3,7 +3,7 @@
 * @Date:   2017-05-18T15:37:15+08:00
 * @Email:  uniquecolesmith@gmail.com
 * @Last modified by:   eason
-* @Last modified time: 2017-05-23T11:15:08+08:00
+* @Last modified time: 2017-05-25T19:48:54+08:00
 * @License: MIT
 * @Copyright: Eason(uniquecolesmith@gmail.com)
 */
@@ -220,8 +220,14 @@ export default function createEva() {
         // { path: {} }
         routes,
         (_, methodObject) => {
-          // []
-          if (Array.isArray(methodObject)) {
+          // different middlewares + handler
+          // '/user': 'handle_user'
+          if (typeof methodObject === 'string') {
+            return [
+              createMethod(vHandlers, namespace, methodObject, vMiddlewares),
+            ];
+          } else if (Array.isArray(methodObject)) {
+            // '/user': ['handle_user']
             const [
               middlewares, endHandler,
             ] = [methodObject.slice(0, -1), ...methodObject.slice(-1)];
@@ -229,19 +235,19 @@ export default function createEva() {
               ...middlewares.map(m => createMethod(vMiddlewares, namespace, m)),
               createMethod(vHandlers, namespace, endHandler, vMiddlewares),
             ];
+          } else {
+            // { get: [], post: [] }
+            return mapObject(
+              methodObject,
+              (_, methodMHs) => { // eslint-disable-line
+                const [middlewares, endHandler] = [methodMHs.slice(0, -1), ...methodMHs.slice(-1)];
+                return [
+                  ...middlewares.map(m => createMethod(vMiddlewares, namespace, m)),
+                  createMethod(vHandlers, namespace, endHandler, vMiddlewares),
+                ];
+              },
+            );
           }
-
-          // { get: [], post: [] }
-          return mapObject(
-            methodObject,
-            (_, methodMHs) => { // eslint-disable-line
-              const [middlewares, endHandler] = [methodMHs.slice(0, -1), ...methodMHs.slice(-1)];
-              return [
-                ...middlewares.map(m => createMethod(vMiddlewares, namespace, m)),
-                createMethod(vHandlers, namespace, endHandler, vMiddlewares),
-              ];
-            },
-          );
         },
       );
 
@@ -249,11 +255,13 @@ export default function createEva() {
       Object.keys(t).forEach((rpath) => {
         const methods = t[rpath];
 
-        // '/user': ['list_user'] // @Support get method
         if (Array.isArray(t[rpath])) {
+          // '/user': 'list_user' // @Support only get method
+          // '/user': ['list_user'] // @Support only get method
           return router.get(rpath, ...t[rpath]);
         }
 
+        // @TODO
         // '/user': { get: [], post: [], ... },
         Object.keys(methods)
           .forEach(name => router[name](rpath, ...methods[name]));
