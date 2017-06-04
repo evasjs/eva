@@ -2,8 +2,13 @@
 * @Author: eason
 * @Date:   2017-05-18T15:37:15+08:00
 * @Email:  uniquecolesmith@gmail.com
+<<<<<<< HEAD
  * @Last modified by:   eason
- * @Last modified time: 2017-06-04T20:11:13+08:00
+ * @Last modified time: 2017-06-04T20:15:49+08:00
+=======
+ * @Last modified by:   eason
+ * @Last modified time: 2017-06-04T20:15:49+08:00
+>>>>>>> 0026e57988dafabf757f042b94fb93dca64291df
 * @License: MIT
 * @Copyright: Eason(uniquecolesmith@gmail.com)
 */
@@ -40,9 +45,13 @@ export default function createEva() {
   //
   return function eva({
     context = process.cwd(),
+    instance = null,
     db = DEFAULT_DB,
     server = DEFAULT_SERVER,
   } = {}) {
+    // Generate server instance and db instance
+    const { instance: _instance, mongoose } = init(instance);
+
     const app = {
       // properties
       _namespaces: [],
@@ -69,24 +78,23 @@ export default function createEva() {
       start,
       startWithSocket,
 
-      // express instance
-      _instance: instance, // eslint-disable-line
+      _instance, // eslint-disable-line
     };
-
-    const { instance, mongoose } = init();
 
     return app;
 
-    function init() {
+    function init(_appInstance) {
       const MODE = process.env.NODE_ENV || 'development';
       const LOGFILE = path.join(context, '.app.log');
 
-      const appInstance = createInstance(MODE, LOGFILE);
+      const appInstance = _appInstance || createInstance(MODE, LOGFILE);
 
-      const appMongoose = connectMongodb(
-        createDbConf(db[MODE] || db.DEFAULT || db),
-        MODE,
-      );
+      const appMongoose = db === null
+        ? null
+        : connectMongodb(
+          createDbConf(db[MODE] || db.DEFAULT || db),
+          MODE,
+        );
 
       return { instance: appInstance, mongoose: appMongoose };
     }
@@ -105,22 +113,64 @@ export default function createEva() {
     }
 
     function model(namespace, ms) {
+      // NO need db
+      if (db === null && mongoose === null) {
+        return app;
+      }
+
       invariant(ms, `app.model: models should be defined in ${namespace}`);
 
-      const { schema, options, virtuals, methods, statics } = ms;
+      const { schema, options, virtuals, methods, statics, pre, post } = ms;
       const vModels = app._models;
+
+      invariant(!vModels[namespace], `app.model: model ${namespace} should register only once.`);
+
       const vUtils = app._utils;
 
-      const realSchema = new mongoose.Schema(schema, options);
-      realSchema.methods = mapObject(methods, (name, em) => function method(...args) {
-        em.apply(this, [vModels, vUtils, ...args]);
-      });
-      realSchema.statics = mapObject(statics, (name, em) => function method(...args) {
-        em.apply(this, [vModels, vUtils, ...args]);
-      });
-      mapObject(virtuals, (name, em) => realSchema.virtual(name).get(() => em(vUtils)));
+      const mongooseSchema = new mongoose.Schema(schema, options);
+      if (methods) {
+        mongooseSchema.methods = mapObject(methods, (name, em) => function method(...args) {
+          em.apply(this, [vModels, vUtils, ...args]);
+        });
+      }
+      if (statics) {
+        mongooseSchema.statics = mapObject(statics, (name, em) => function method(...args) {
+          em.apply(this, [vModels, vUtils, ...args]);
+        });
+      }
 
-      vModels[namespace] = mongoose.model(namespace, realSchema);
+      if (virtuals) {
+        mapObject(
+          virtuals,
+          (name, em) => mongooseSchema.virtual(name).get(() => em(vUtils)),
+        );
+      }
+
+      if (pre) {
+        mapObject(
+          pre,
+          (name, em) => mongooseSchema.pre(
+            name,
+            function preName(next) {
+              em.apply(this, [vModels, vUtils, next]);
+            },
+          ),
+        );
+      }
+
+      if (post) {
+        mapObject(
+          post,
+          (name, em) => mongooseSchema.post(
+            name,
+            function preName(next) {
+              em.apply(this, [vModels, vUtils, next]);
+            },
+          ),
+        );
+      }
+
+      vModels[namespace] = mongoose.model(namespace, mongooseSchema);
 
       // link
       return app;
@@ -184,17 +234,34 @@ export default function createEva() {
         // { path: {} }
         routes,
         (_, methodObject) => {
-          // { get: [], post: [] }
-          return mapObject(
-            methodObject,
-            (_, methodMHs) => { // eslint-disable-line
-              const [middlewares, endHandler] = [methodMHs.slice(0, -1), ...methodMHs.slice(-1)];
-              return [
-                ...middlewares.map(m => createMethod(vMiddlewares, namespace, m)),
-                createMethod(vHandlers, namespace, endHandler, vMiddlewares),
-              ];
-            },
-          );
+          // different middlewares + handler
+          // '/user': 'handle_user'
+          if (typeof methodObject === 'string') {
+            return [
+              createMethod(vHandlers, namespace, methodObject, vMiddlewares),
+            ];
+          } else if (Array.isArray(methodObject)) {
+            // '/user': ['handle_user']
+            const [
+              middlewares, endHandler,
+            ] = [methodObject.slice(0, -1), ...methodObject.slice(-1)];
+            return [
+              ...middlewares.map(m => createMethod(vMiddlewares, namespace, m)),
+              createMethod(vHandlers, namespace, endHandler, vMiddlewares),
+            ];
+          } else {
+            // { get: [], post: [] }
+            return mapObject(
+              methodObject,
+              (_, methodMHs) => { // eslint-disable-line
+                const [middlewares, endHandler] = [methodMHs.slice(0, -1), ...methodMHs.slice(-1)];
+                return [
+                  ...middlewares.map(m => createMethod(vMiddlewares, namespace, m)),
+                  createMethod(vHandlers, namespace, endHandler, vMiddlewares),
+                ];
+              },
+            );
+          }
         },
       );
 
@@ -202,6 +269,14 @@ export default function createEva() {
       Object.keys(t).forEach((rpath) => {
         const methods = t[rpath];
 
+        if (Array.isArray(t[rpath])) {
+          // '/user': 'list_user' // @Support only get method
+          // '/user': ['list_user'] // @Support only get method
+          return router.get(rpath, ...t[rpath]);
+        }
+
+        // @TODO
+        // '/user': { get: [], post: [], ... },
         Object.keys(methods)
           .forEach(name => router[name](rpath, ...methods[name]));
       });
@@ -210,7 +285,7 @@ export default function createEva() {
     }
 
     function use(...args) {
-      instance.use(...args);
+      _instance.use(...args);
       return app;
     }
 
@@ -223,7 +298,7 @@ export default function createEva() {
           //   instance.use(oneRoute);
           // }
 
-          instance.use(nsRoutes);
+          _instance.use(nsRoutes);
         }
       }
 
@@ -249,7 +324,7 @@ export default function createEva() {
       // render routes
       render();
 
-      instance.listen(server.PORT, server.HOST || 'localhost', (err) => {
+      _instance.listen(server.PORT, server.HOST || 'localhost', (err) => {
         /* eslint-disable */
         if (err) {
           console.log(err);
@@ -259,7 +334,7 @@ export default function createEva() {
         /* eslint-enable */
       });
 
-      return instance;
+      return _instance;
     }
 
     function plugin(application) {
