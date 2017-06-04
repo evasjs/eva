@@ -2,8 +2,8 @@
 * @Author: eason
 * @Date:   2017-05-18T15:37:15+08:00
 * @Email:  uniquecolesmith@gmail.com
-* @Last modified by:   eason
-* @Last modified time: 2017-05-19T15:33:34+08:00
+ * @Last modified by:   eason
+ * @Last modified time: 2017-06-04T20:11:13+08:00
 * @License: MIT
 * @Copyright: Eason(uniquecolesmith@gmail.com)
 */
@@ -64,10 +64,13 @@ export default function createEva() {
       register,
       plugin,
       util,
+      use,
+      render,
       start,
+      startWithSocket,
 
       // express instance
-      instance,
+      _instance: instance, // eslint-disable-line
     };
 
     const { instance, mongoose } = init();
@@ -206,7 +209,12 @@ export default function createEva() {
       return router;
     }
 
-    function start() {
+    function use(...args) {
+      instance.use(...args);
+      return app;
+    }
+
+    function render() {
       for (const namespace in app._routes) {
         if (Object.prototype.hasOwnProperty.call(app._routes, namespace)) {
           const nsRoutes = renderRoutes(namespace, app._routes[namespace]);
@@ -218,6 +226,28 @@ export default function createEva() {
           instance.use(nsRoutes);
         }
       }
+
+      return app;
+    }
+
+    function startWithSocket(serverInstance) {
+      // const serverInstance = require('http').createServer(instance);
+      serverInstance.listen(server.PORT, server.HOST || 'localhost', (err) => {
+        /* eslint-disable */
+        if (err) {
+          console.log(err);
+        } else {
+          console.log(`Server start at port: ${server.PORT}`);
+        }
+        /* eslint-enable */
+      });
+
+      return serverInstance;
+    }
+
+    function start() {
+      // render routes
+      render();
 
       instance.listen(server.PORT, server.HOST || 'localhost', (err) => {
         /* eslint-disable */
