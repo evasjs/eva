@@ -2,13 +2,8 @@
 * @Author: eason
 * @Date:   2017-05-18T15:37:15+08:00
 * @Email:  uniquecolesmith@gmail.com
-<<<<<<< HEAD
  * @Last modified by:   eason
  * @Last modified time: 2017-06-04T20:15:49+08:00
-=======
- * @Last modified by:   eason
- * @Last modified time: 2017-06-04T20:15:49+08:00
->>>>>>> 0026e57988dafabf757f042b94fb93dca64291df
 * @License: MIT
 * @Copyright: Eason(uniquecolesmith@gmail.com)
 */
@@ -48,6 +43,17 @@ export default function createEva() {
     instance = null,
     db = DEFAULT_DB,
     server = DEFAULT_SERVER,
+    onNotFound = (req, res, next) => {
+      const err = new Error('Not Found.');
+      err.json = {
+        errcode: 404,
+        errmsg: 'Not Found.',
+      };
+      next(err);
+    },
+    onError = (err, req, res, next) => {
+      throw err;
+    },
   } = {}) {
     // Generate server instance and db instance
     const { instance: _instance, mongoose } = init(instance);
@@ -323,6 +329,11 @@ export default function createEva() {
     function start() {
       // render routes
       render();
+
+      // 1. 404
+      _instance.use(onNotFound);
+      // 2. server error
+      _instance.use(onError);
 
       _instance.listen(server.PORT, server.HOST || 'localhost', (err) => {
         /* eslint-disable */
