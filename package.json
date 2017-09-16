@@ -1,6 +1,6 @@
 {
   "name": "eva-server",
-  "version": "0.0.30",
+  "version": "0.0.31",
   "description": "Eva Rest Api Server",
   "main": "lib/index.js",
   "author": "Eason(uniquecolesmith@gmail.com)",
