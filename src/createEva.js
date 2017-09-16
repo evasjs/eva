@@ -54,6 +54,7 @@ export default function createEva() {
     onError = (err, req, res, next) => {
       throw err;
     },
+    options = {},
   } = {}) {
     // Generate server instance and db instance
     const { instance: _instance, mongoose } = init(instance);
@@ -93,7 +94,7 @@ export default function createEva() {
       const MODE = process.env.NODE_ENV || 'development';
       const LOGFILE = path.join(context, '.app.log');
 
-      const appInstance = _appInstance || createInstance(MODE, LOGFILE);
+      const appInstance = _appInstance || createInstance(MODE, LOGFILE, options);
 
       const appMongoose = db === null
         ? null

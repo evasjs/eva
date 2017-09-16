@@ -110,7 +110,7 @@ export function connectMongodb(uri, env) {
   return mongoose;
 }
 
-export function createInstance(env, log) {
+export function createInstance(env, log, options = {}) {
   const instance = express();
   // 1 LOG
   if (env === 'development') {
@@ -124,12 +124,12 @@ export function createInstance(env, log) {
   }
 
   // 2 Common Middlewares
-  instance.use(helmet());
-  instance.use(cors());
+  instance.use(helmet(options.helmetOptions));
+  instance.use(cors(options.corsOptions));
   instance.use(bodyParser.json());
   instance.use(bodyParser.urlencoded({ extended: true }));
-  instance.use(multipart());
-  instance.use(compression());
+  instance.use(multipart(options.multipartOptions));
+  instance.use(compression(options.compressionOptions));
 
   return instance;
 }
