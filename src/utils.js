@@ -17,6 +17,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 
+export function NOOP() {}
+
 export function mapObject(object, wrapper) {
   const t = {};
 

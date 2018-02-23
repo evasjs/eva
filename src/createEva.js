@@ -12,7 +12,7 @@ import invariant from 'invariant';
 
 import { Router } from 'express';
 
-import { mapObject, createMethod, createDbConf, connectMongodb, createInstance } from './utils';
+import { NOOP, mapObject, createMethod, createDbConf, connectMongodb, createInstance } from './utils';
 
 const DEFAULT_SERVER = {
   HOST: 'localhost',
@@ -43,6 +43,8 @@ export default function createEva() {
     instance = null,
     db = DEFAULT_DB,
     server = DEFAULT_SERVER,
+    beforeRender = NOOP,
+    afterRender = NOOP,
     onNotFound = (req, res, next) => {
       const err = new Error('Not Found.');
       err.json = {
@@ -82,6 +84,7 @@ export default function createEva() {
       util,
       use,
       render,
+      listen,
       start,
       startWithSocket,
 
@@ -327,10 +330,7 @@ export default function createEva() {
       return serverInstance;
     }
 
-    function start() {
-      // render routes
-      render();
-
+    function listen() {
       // 1. 404
       _instance.use(onNotFound);
       // 2. server error
@@ -347,6 +347,19 @@ export default function createEva() {
       });
 
       return _instance;
+    }
+
+    function start() {
+      // before render routes
+      beforeRender();
+
+      // render routes
+      render();
+
+      // after render routes
+      afterRender();
+
+      return listen();
     }
 
     function plugin(application) {
